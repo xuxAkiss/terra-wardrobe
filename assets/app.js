@@ -3,7 +3,7 @@
    Vanilla JS single-page archive
    ========================================================= */
 
-const DATA_URL = 'data/archive.json?v=20261027c';
+const DATA_URL = 'data/archive.json?v=20261027d';
 const OFFICIAL_ARCHIVE = 'https://ak.hypergryph.com/archive/dynamicCompile/index.html';
 const FALLBACK_IMG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">' +
