@@ -3,7 +3,7 @@
    Vanilla JS single-page archive
    ========================================================= */
 
-const DATA_URL = 'data/archive.json?v=20261027b';
+const DATA_URL = 'data/archive.json?v=20261027c';
 const OFFICIAL_ARCHIVE = 'https://ak.hypergryph.com/archive/dynamicCompile/index.html';
 const FALLBACK_IMG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">' +
@@ -907,7 +907,7 @@ function renderSkinDetail(skin) {
             <div class="facts">
               <div class="facts-head"><strong>购买前先看</strong><span>QUICK FACTS</span></div>
               <dl class="fact"><dt>立绘类型</dt><dd>${dyn ? '<span class="yes">动态立绘</span> · 含官方动作影像' : '静态立绘'}</dd></dl>
-              <dl class="fact"><dt>局内动作</dt><dd>${demos.length ? `官方图集含 ${demos.length} 段基建 / 技能动作，点击下方 GIF 可播放原图` : (dyn ? '官方展示了额外立绘动作与入场表现' : '暂无官方动作图；通常不改变技能特效')}</dd></dl>
+              <dl class="fact"><dt>局内动作</dt><dd>${demos.length ? `官方图集含 ${demos.length} 段基建 / 技能动作，点击下方 GIF 可播放原图` : (dyn ? '官方展示了额外立绘动作与入场表现' : '暂未收录官方动作图，可点上方 B 站链接查找')}</dd></dl>
               <dl class="fact"><dt>获取方式</dt><dd>${escapeHTML(skin.obtain || '以游戏内公告为准')}</dd></dl>
               <dl class="fact"><dt>上架时间</dt><dd>${escapeHTML(fmtDate(skin.releaseDate))}</dd></dl>
               <dl class="fact"><dt>官方影像</dt><dd>${dyn ? `<span class="yes">已收录 ${actionCount} 段</span> · 可直接播放` : '<span class="no">暂无动态影像</span>'}</dd></dl>
