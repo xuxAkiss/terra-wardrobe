@@ -3,7 +3,7 @@
    Vanilla JS single-page archive
    ========================================================= */
 
-const DATA_URL = 'data/archive.json?v=20261027d';
+const DATA_URL = 'data/archive.json?v=20261027e';
 const OFFICIAL_ARCHIVE = 'https://ak.hypergryph.com/archive/dynamicCompile/index.html';
 const FALLBACK_IMG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">' +
@@ -177,6 +177,7 @@ function readFilters(route) {
     rarity,
     dyn: q.get('dyn') === '1',
     demo: q.get('demo') === '1',
+    sale: q.get('sale') === '1',
     series,
     sort,
     q: q.get('q') || '',
@@ -199,6 +200,7 @@ function syncFilters() {
     if (f.rarity !== 'ALL') params.set('rarity', f.rarity);
     if (f.dyn) params.set('dyn', '1');
     if (f.demo) params.set('demo', '1');
+    if (f.sale) params.set('sale', '1');
     if (f.series !== 'ALL') params.set('series', f.series);
     if (f.sort !== 'new') params.set('sort', f.sort);
     if (f.q) params.set('q', f.q);
@@ -225,6 +227,8 @@ async function loadData() {
 function indexData() {
   app.opById = new Map(app.data.operators.map((o) => [o.id, o]));
   app.skinById = new Map(app.data.skins.map((s) => [s.id, s]));
+  app.saleIds = new Set((app.data.onSale || []).map((row) => row.skinId));
+  app.saleBySkin = new Map((app.data.onSale || []).map((row) => [row.skinId, row]));
   app.dynamicRecords = [];
   for (const s of app.data.skins) {
     if (!s.dyn) continue;
@@ -328,6 +332,7 @@ function filteredSkins() {
     if (f.rarity !== 'ALL' && String(s.rarity) !== f.rarity) return false;
     if (f.dyn && !s.dyn) return false;
     if (f.demo && !(s.demos && s.demos.length)) return false;
+    if (f.sale && !app.saleIds.has(s.id)) return false;
     if (f.series !== 'ALL' && s.series !== f.series) return false;
     if (q) {
       const hay = `${s.name} ${s.operatorName} ${s.operatorEn} ${s.series} ${s.artist}`.toLowerCase();
@@ -358,9 +363,10 @@ function filteredDynamics() {
 
 /* ---------- cards ---------- */
 
-function skinCard(s) {
+function skinCard(s, sale = null) {
   const href = `#/skin/${enc(s.id)}`;
   const fallback = s.image || s.thumb;
+  const saleLabel = sale ? (sale.status === 'new' ? '新上架' : sale.status === 'return' ? '返场' : '在售') : '';
   return `
     <a class="skin-card" href="${href}" style="--class-color:${attr(s.classColor)}" aria-label="${attr(s.operatorName)} · ${attr(s.name)}">
       <div class="card-media" data-glyph="${attr(s.classShort)}">
@@ -369,13 +375,14 @@ function skinCard(s) {
           ${classBadge(s)}
           ${s.dyn ? dynBadge('动态') : ''}
           ${s.demoCount ? `<span class="demo-badge">动作 ${s.demoCount}</span>` : ''}
+          ${sale ? `<span class="sale-badge">${saleLabel}</span>` : ''}
         </div>
         <span class="card-hover-line"></span>
       </div>
       <div class="card-body">
         <h3 class="card-title">${escapeHTML(s.name)}</h3>
         <p class="card-sub">${escapeHTML(s.operatorName)} <span class="en">${escapeHTML(s.operatorEn)}</span></p>
-        <div class="card-foot"><span>${escapeHTML(fmtDate(s.releaseDate))}</span><span class="series">${escapeHTML(s.series)}</span></div>
+        <div class="card-foot"><span>${sale ? (sale.endDate ? `至 ${escapeHTML(sale.endDate)}` : '近期上架') : escapeHTML(fmtDate(s.releaseDate))}</span><span class="series">${escapeHTML(sale ? (sale.source === 'official' ? s.series : (sale.tag || s.series)) : s.series)}</span></div>
       </div>
     </a>`;
 }
@@ -389,6 +396,7 @@ function operatorCard(o) {
         <div class="card-badges">
           ${classBadge(o)}
           ${o.dynamicCount ? dynBadge('动态') : ''}
+          ${o.baseDemoCount ? `<span class="demo-badge">原皮动作 ${o.baseDemoCount}</span>` : ''}
         </div>
         <span class="card-hover-line"></span>
       </div>
@@ -416,13 +424,13 @@ function dynCard(rec) {
     </article>`;
 }
 
-function motionCard(demo, skin, index) {
+function motionCard(demo, context, index) {
   const label = demo.label || `动作 ${index + 1}`;
   return `
     <button class="motion-card" type="button" data-action="open-lightbox"
-      data-src="${attr(demo.url)}" data-cap="${attr(skin.operatorName)} · ${attr(skin.name)} · ${attr(label)}"
-      aria-label="播放 ${attr(skin.operatorName)} ${attr(skin.name)} ${attr(label)} 官方动作">
-      <img src="${attr(preview(demo.url, 320))}" data-fallback="${attr(demo.url)}" alt="${attr(skin.operatorName)} ${attr(skin.name)} ${attr(label)}" loading="lazy" decoding="async">
+      data-src="${attr(demo.url)}" data-cap="${attr(context.operatorName)} · ${attr(context.name)} · ${attr(label)}"
+      aria-label="播放 ${attr(context.operatorName)} ${attr(context.name)} ${attr(label)} 官方动作">
+      <img src="${attr(preview(demo.url, 320))}" data-fallback="${attr(demo.url)}" alt="${attr(context.operatorName)} ${attr(context.name)} ${attr(label)}" loading="lazy" decoding="async">
       <span class="motion-gif">GIF</span>
       <span class="motion-play">${playIcon()}</span>
       <span class="motion-label">${escapeHTML(label)}</span>
@@ -480,6 +488,9 @@ function renderHome() {
   const d = app.data;
   const feature = app.dynamicRecords[0];
   const latest = app.dynamicRecords.slice(0, 3);
+  const sales = (d.onSale || [])
+    .map((sale) => ({ sale, skin: app.skinById.get(sale.skinId) }))
+    .filter((item) => item.skin);
   const classTiles = d.classes.map((c) => `
     <a class="class-tile" href="#/operators?class=${attr(c.key)}" style="--class-color:${attr(c.color)}" data-glyph="${attr(c.short)}">
       <span class="class-badge" style="--class-color:${attr(c.color)}"><span>${escapeHTML(c.short)}</span></span>
@@ -499,8 +510,8 @@ function renderHome() {
             </h1>
             <p class="hero-text">
               聚合《明日方舟》<strong>官方「干员动态集录」</strong>与全量干员、时装立绘。
-              原立绘与皮肤立绘一滑对比，官方基建 / 技能动作与动态时装影像直接播放——
-              不用等干员上岛，也能先看清她/他穿上的样子。
+              原立绘与皮肤立绘一滑对比，原皮与本皮肤的基建 / 技能动作并排播放，
+              动态时装影像也能直接看——不用等干员上岛，也能先看清她/他穿上的样子。
             </p>
             <div class="hero-actions">
               <a class="btn" href="#/skins">开始逛时装 ${icon('arrow')}</a>
@@ -511,6 +522,7 @@ function renderHome() {
               <span><i></i>${d.meta.skinCount} 套时装</span>
               <span><i></i>${d.meta.dynamicSkinCount} 套动态时装</span>
               <span><i></i>${d.meta.demoSkinCount || 0} 套含基建 / 技能动作</span>
+              <span><i></i>${d.meta.baseDemoOperatorCount || 0} 位有原皮动作</span>
               <span><i></i>官方 MP4 直连</span>
             </div>
           </div>
@@ -527,6 +539,21 @@ function renderHome() {
         <div class="stat"><span class="stat-num">${d.meta.demoClipCount || d.meta.officialClipCount}</span><span class="stat-label">MOTION / 基建·技能动作</span></div>
       </div>
     </div>
+
+    ${sales.length ? `
+    <section class="section on-sale-section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <span class="kicker">ON SALE NOW</span>
+            <h2 class="section-title">正在售卖</h2>
+          </div>
+          <a class="section-link" href="#/skins?sale=1">全部 ${sales.length} 套在售 ${icon('arrow')}</a>
+        </div>
+        <p class="section-sub">按游戏商店表抓取的当前轮换，含新上架与返场。卡面标注「新上架 / 返场」，结束时间以游戏内公告为准。</p>
+        <div class="card-grid">${sales.slice(0, 12).map(({ sale, skin }) => skinCard(skin, sale)).join('')}</div>
+      </div>
+    </section>` : ''}
 
     <section class="section">
       <div class="container">
@@ -659,6 +686,7 @@ function renderSkins() {
         <div class="filter-group">
           <button type="button" class="toggle" data-filter="dyn" aria-pressed="${f.dyn}"><span class="switch"></span>只看动态</button>
           <button type="button" class="toggle" data-filter="demo" aria-pressed="${f.demo}"><span class="switch"></span>只看有动作</button>
+          <button type="button" class="toggle" data-filter="sale" aria-pressed="${f.sale}"><span class="switch"></span>只看在售</button>
         </div>
         <div class="filter-spacer"></div>
         <div class="filter-group">
@@ -682,9 +710,9 @@ function renderSkins() {
       </div>
 
       <div class="result-meta"><span><strong id="skin-count">${list.length}</strong> 套时装 · <strong id="skin-dyn-count">${list.filter((s) => s.dyn).length}</strong> 套动态 · <strong id="skin-demo-count">${list.filter((s) => s.demos && s.demos.length).length}</strong> 套有动作</span><span>拖动详情页中线进行对比</span></div>
-      <div class="card-grid" id="skin-grid">${shown.map(skinCard).join('')}</div>
+      <div class="card-grid" id="skin-grid">${shown.map((s) => skinCard(s, f.sale ? app.saleBySkin.get(s.id) : null)).join('')}</div>
       <div class="load-more" id="skin-more">${moreButton('skins', list.length, app.visible)}</div>
-      ${list.length === 0 ? emptyState('没有找到这套时装', '试试清空「只看动态 / 只看有动作」，或换个系列 / 关键词。') : ''}
+      ${list.length === 0 ? emptyState('没有找到这套时装', '试试清空「只看动态 / 只看有动作 / 只看在售」，或换个系列 / 关键词。') : ''}
     </div>
   </div>`;
 }
@@ -796,6 +824,7 @@ function renderOperatorDetail(op) {
             <dl class="fact"><dt>编号</dt><dd>${escapeHTML(op.displayNumber || '—')}</dd></dl>
             <dl class="fact"><dt>时装</dt><dd><strong>${op.skinCount}</strong> 套已收录 · <strong>${op.dynamicCount}</strong> 套动态</dd></dl>
             <dl class="fact"><dt>晋升动态</dt><dd>${op.promotion ? '<span class="yes">已收录官方影像</span>' : '<span class="no">未收录</span>'}</dd></dl>
+            <dl class="fact"><dt>原皮动作</dt><dd>${op.baseDemoCount ? `<span class="yes">${op.baseDemoCount} 段 GIF</span>` : '<span class="no">未收录</span>'}</dd></dl>
           </div>
           ${op.quote ? `<div class="note">“${escapeHTML(op.quote)}”</div>` : ''}
         </aside>
@@ -817,6 +846,16 @@ function renderOperatorDetail(op) {
           </div>
           <div class="video-caption"><strong>${escapeHTML(op.name)} · 精英二动态</strong><span>${promo.actions.length} 段动作 · 官方 MP4</span></div>
         </div>
+      </section>` : ''}
+
+      ${op.baseDemos && op.baseDemos.length ? `
+      <section class="dynamic-section motion-section">
+        <div class="section-head">
+          <div><span class="kicker">ORIGINAL OUTFIT MOTION</span><h2 class="section-title" style="font-size:clamp(28px,3.4vw,44px)">原皮基建 / 技能动作</h2></div>
+          ${op.baseOpus ? `<a class="section-link" href="${attr(op.baseOpus)}" target="_blank" rel="noopener noreferrer">官方图集 ${icon('external')}</a>` : ''}
+        </div>
+        <p class="motion-note">来自官方「新增干员」图集，是这名干员默认立绘的基建 / 技能演示。列表只加载低清首帧，点击才播放完整 GIF。</p>
+        <div class="motion-grid">${op.baseDemos.map((demo, index) => motionCard(demo, { operatorName: op.name, name: '原皮' }, index)).join('')}</div>
       </section>` : ''}
 
       <section class="dynamic-section">
@@ -844,6 +883,7 @@ function renderSkinDetail(skin) {
   const dyn = skin.dyn;
   const actionCount = dyn ? dyn.actions.length : 0;
   const demos = skin.demos || [];
+  const baseDemos = (op && op.baseDemos) || [];
 
   return `
   <div class="page">
@@ -896,6 +936,7 @@ function renderSkinDetail(skin) {
               <div class="meta-item"><dt>获取方式</dt><dd>${escapeHTML(skin.obtain || '—')}</dd></div>
               <div class="meta-item"><dt>所属时装组</dt><dd>${escapeHTML(skin.group || '—')}</dd></div>
               <div class="meta-item"><dt>官方动作</dt><dd>${demos.length ? `<span class="yes">${demos.length} 段 GIF</span>` : (dyn ? `<span class="yes">${actionCount} 段视频</span>` : '<span class="no">未收录</span>')}</dd></div>
+              <div class="meta-item"><dt>原皮动作</dt><dd>${baseDemos.length ? `<span class="yes">${baseDemos.length} 段 GIF</span>` : '<span class="no">未收录</span>'}</dd></div>
             </dl>
 
             <div class="action-row">
@@ -907,7 +948,7 @@ function renderSkinDetail(skin) {
             <div class="facts">
               <div class="facts-head"><strong>购买前先看</strong><span>QUICK FACTS</span></div>
               <dl class="fact"><dt>立绘类型</dt><dd>${dyn ? '<span class="yes">动态立绘</span> · 含官方动作影像' : '静态立绘'}</dd></dl>
-              <dl class="fact"><dt>局内动作</dt><dd>${demos.length ? `官方图集含 ${demos.length} 段基建 / 技能动作，点击下方 GIF 可播放原图` : (dyn ? '官方展示了额外立绘动作与入场表现' : '暂未收录官方动作图，可点上方 B 站链接查找')}</dd></dl>
+              <dl class="fact"><dt>局内动作</dt><dd>${demos.length ? `官方图集含 ${demos.length} 段基建 / 技能动作，点击下方 GIF 可播放原图` : (baseDemos.length ? `本皮肤暂无官方动作图；下方可先看 ${baseDemos.length} 段原皮动作作参考` : (dyn ? '官方展示了额外立绘动作与入场表现' : '暂未收录官方动作图，可点上方 B 站链接查找'))}</dd></dl>
               <dl class="fact"><dt>获取方式</dt><dd>${escapeHTML(skin.obtain || '以游戏内公告为准')}</dd></dl>
               <dl class="fact"><dt>上架时间</dt><dd>${escapeHTML(fmtDate(skin.releaseDate))}</dd></dl>
               <dl class="fact"><dt>官方影像</dt><dd>${dyn ? `<span class="yes">已收录 ${actionCount} 段</span> · 可直接播放` : '<span class="no">暂无动态影像</span>'}</dd></dl>
@@ -948,19 +989,32 @@ function renderSkinDetail(skin) {
           </div>`}
         </section>
 
-        ${demos.length ? `
+        ${(baseDemos.length || demos.length) ? `
         <section class="dynamic-section motion-section">
           <div class="section-head">
             <div>
               <span class="kicker">BASE &amp; SKILL MOTION</span>
-              <h2 class="section-title" style="font-size:clamp(28px,3.4vw,44px)">基建 / 技能动作</h2>
+              <h2 class="section-title" style="font-size:clamp(28px,3.4vw,44px)">原皮 / 本皮肤动作</h2>
             </div>
-            ${skin.opus ? `<a class="section-link" href="${attr(skin.opus)}" target="_blank" rel="noopener noreferrer">官方图集 ${icon('external')}</a>` : ''}
+            <div class="motion-links">
+              ${op && op.baseOpus ? `<a class="section-link" href="${attr(op.baseOpus)}" target="_blank" rel="noopener noreferrer">原皮官方图集 ${icon('external')}</a>` : ''}
+              ${skin.opus ? `<a class="section-link" href="${attr(skin.opus)}" target="_blank" rel="noopener noreferrer">皮肤官方图集 ${icon('external')}</a>` : ''}
+            </div>
           </div>
-          <p class="motion-note">来自官方「新增服饰」图集，含基建动作与技能演示。列表只加载低清首帧，点击任意一张才播放完整 GIF。</p>
-          <div class="motion-grid">
-            ${demos.map((demo, index) => motionCard(demo, skin, index)).join('')}
+          <p class="motion-note">${baseDemos.length ? '左侧 / 上方是官方干员实装图集（原皮），右侧 / 下方是官方「新增服饰」图集（本皮肤）。两边都只加载低清首帧，点击任意一张才播放完整 GIF。' : '来自官方「新增服饰」图集，含基建动作与技能演示。列表只加载低清首帧，点击任意一张才播放完整 GIF。'}</p>
+          <div class="motion-compare ${baseDemos.length && demos.length ? '' : 'single'}">
+            ${baseDemos.length ? `
+            <div class="motion-column">
+              <div class="motion-col-head"><strong>原皮</strong><span>${baseDemos.length} 段 · 官方干员图集</span></div>
+              <div class="motion-grid">${baseDemos.map((demo, index) => motionCard(demo, { operatorName: skin.operatorName, name: '原皮' }, index)).join('')}</div>
+            </div>` : ''}
+            ${demos.length ? `
+            <div class="motion-column">
+              <div class="motion-col-head"><strong>${escapeHTML(skin.name)}</strong><span>${demos.length} 段 · 本皮肤</span></div>
+              <div class="motion-grid">${demos.map((demo, index) => motionCard(demo, { operatorName: skin.operatorName, name: skin.name }, index)).join('')}</div>
+            </div>` : ''}
           </div>
+          ${!demos.length ? '<p class="motion-note">这套皮肤暂时没有可匹配的官方动作图；上方是原皮动作，可作为技能 / 基建表现的参考。</p>' : ''}
         </section>` : ''}
 
         ${related.length ? `
@@ -979,6 +1033,7 @@ function renderSkinDetail(skin) {
 /* ---------- about / 404 ---------- */
 
 function renderAbout() {
+  const d = app.data;
   return `
   <div class="page">
     <div class="container">
@@ -994,8 +1049,8 @@ function renderAbout() {
         <h2>数据从哪里来</h2>
         <div class="source-list">
           <div class="source-item"><span>动态时装 / 精英二动态影像与官方海报</span><a href="https://ak.hypergryph.com/archive/dynamicCompile/index.html" target="_blank" rel="noopener noreferrer">干员动态集录 ↗</a></div>
-          <div class="source-item"><span>基建 / 技能动作 GIF 与最新时装公告</span><a href="https://space.bilibili.com/161775300" target="_blank" rel="noopener noreferrer">明日方舟官方 B 站账号 ↗</a></div>
-          <div class="source-item"><span>干员、时装、画师、上架时间等结构化数据</span><a href="https://github.com/Kengxxiao/ArknightsGameData" target="_blank" rel="noopener noreferrer">ArknightsGameData ↗</a></div>
+          <div class="source-item"><span>皮肤 / 原皮基建·技能动作 GIF 与最新时装公告</span><a href="https://space.bilibili.com/161775300" target="_blank" rel="noopener noreferrer">明日方舟官方 B 站账号 ↗</a></div>
+          <div class="source-item"><span>干员、时装、画师、上架时间与当前商店轮换</span><a href="https://github.com/Kengxxiao/ArknightsGameData" target="_blank" rel="noopener noreferrer">ArknightsGameData ↗</a></div>
           <div class="source-item"><span>立绘 / 头像资源（经 jsDelivr 读取）</span><a href="https://github.com/yuanyan3060/ArknightsGameResource" target="_blank" rel="noopener noreferrer">ArknightsGameResource ↗</a></div>
           <div class="source-item"><span>补充资料与官方公告索引</span><a href="https://prts.wiki/" target="_blank" rel="noopener noreferrer">PRTS Wiki ↗</a></div>
         </div>
@@ -1010,7 +1065,8 @@ function renderAbout() {
         <ul>
           <li>点击任意时装卡片进入详情页，拖动画面中线即可对比原立绘与皮肤立绘。</li>
           <li>动态标记代表官方发布了动态影像，可在详情页或「动态集录」中直接播放。</li>
-          <li>详情页的「基建 / 技能动作」来自官方「新增服饰」图集；列表只显示低清首帧，点击后才播放完整 GIF。</li>
+          <li>详情页的「原皮 / 本皮肤动作」分别来自官方「新增干员」与「新增服饰 / 活动奖励服饰」图集；列表只显示低清首帧，点击后才播放完整 GIF。</li>
+          <li>原皮动作只覆盖官方发布过「新增干员」图集的干员；没有官方素材的不会用其他图片冒充。当前 ${d.meta.baseDemoOperatorCount || 0} 位干员有原皮动作。</li>
           <li>静态时装通常不改变技能特效；动态时装的卖点主要是立绘动作与入场表现。</li>
           <li>数据会随官方更新而重新构建；未收录的内容以游戏内公告与官方账号为准。</li>
         </ul>
@@ -1183,7 +1239,7 @@ function updateSkinResults() {
   const grid = $('#skin-grid');
   if (!grid) return;
   const list = filteredSkins();
-  grid.innerHTML = list.slice(0, app.visible).map(skinCard).join('');
+  grid.innerHTML = list.slice(0, app.visible).map((s) => skinCard(s, app.filters.sale ? app.saleBySkin.get(s.id) : null)).join('');
   const count = $('#skin-count');
   if (count) count.textContent = list.length;
   const dynCount = $('#skin-dyn-count');
@@ -1501,6 +1557,7 @@ document.addEventListener('click', (event) => {
     const key = filterEl.dataset.filter;
     if (key === 'dyn') app.filters.dyn = !app.filters.dyn;
     else if (key === 'demo') app.filters.demo = !app.filters.demo;
+    else if (key === 'sale') app.filters.sale = !app.filters.sale;
     else app.filters[key] = filterEl.dataset.value;
     app.visible = 60;
     syncFilters();
