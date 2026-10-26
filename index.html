@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#08090a">
+  <title>泰拉衣橱 · 明日方舟时装档案 | 先看立绘，再买时装</title>
+  <meta name="description" content="聚合《明日方舟》官方干员动态集录与全量干员、时装立绘。原立绘与皮肤立绘滑动对比，动态时装官方动作直接播放，买皮肤前先看清立绘、动作与差异。">
+  <meta property="og:title" content="泰拉衣橱 · 明日方舟时装档案">
+  <meta property="og:description" content="先看立绘，再买时装。434 位干员、526 套时装、72 套动态时装的官方立绘与动作展示。">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_CN">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://web.hycdn.cn" crossorigin>
+  <link rel="stylesheet" href="assets/style.css?v=20261026b">
+</head>
+<body>
+  <a class="skip-link" href="#view">跳到主要内容</a>
+
+  <header class="topbar" id="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/" aria-label="泰拉衣橱首页">
+        <span class="brand-mark" aria-hidden="true"><span>A</span></span>
+        <span class="brand-text">
+          <strong>泰拉衣橱</strong>
+          <small>TERRA WARDROBE</small>
+        </span>
+      </a>
+
+      <nav class="nav" id="nav" aria-label="主导航">
+        <a href="#/" data-nav="home">首页</a>
+        <a href="#/operators" data-nav="operators">干员</a>
+        <a href="#/skins" data-nav="skins">时装</a>
+        <a href="#/dynamics" data-nav="dynamics">动态集录</a>
+        <a href="#/about" data-nav="about">关于</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <button class="search-trigger" type="button" data-action="open-search" aria-label="搜索干员或时装">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+          <span>搜索</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+        <button class="menu-trigger" type="button" data-action="toggle-menu" aria-label="打开菜单" aria-expanded="false">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mobile-menu" id="mobile-menu" hidden>
+    <a href="#/" data-nav="home">首页 <span>HOME</span></a>
+    <a href="#/operators" data-nav="operators">干员 <span>OPERATORS</span></a>
+    <a href="#/skins" data-nav="skins">时装 <span>OUTFITS</span></a>
+    <a href="#/dynamics" data-nav="dynamics">动态集录 <span>DYNAMIC</span></a>
+    <a href="#/about" data-nav="about">关于 <span>ABOUT</span></a>
+  </div>
+
+  <main id="view" tabindex="-1">
+    <div class="boot" id="boot">
+      <div class="boot-mark" aria-hidden="true">A</div>
+      <p>正在装载泰拉衣橱…</p>
+      <div class="boot-bar"><span></span></div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <span class="brand-mark small" aria-hidden="true"><span>A</span></span>
+        <div>
+          <strong>泰拉衣橱 · TERRA WARDROBE</strong>
+          <p>一个为博士准备的非官方时装档案。</p>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="#/about">数据与版权</a>
+        <a href="https://ak.hypergryph.com/archive/dynamicCompile/index.html" target="_blank" rel="noopener noreferrer">官方动态集录 ↗</a>
+        <a href="https://prts.wiki/" target="_blank" rel="noopener noreferrer">PRTS Wiki ↗</a>
+      </div>
+    </div>
+    <div class="footer-fine">
+      <p>《明日方舟》及其角色、时装、影像版权归上海鹰角网络科技有限公司所有。本站不存储视频文件，仅引用官方公开 CDN 内容并标注来源。</p>
+      <p>非官方粉丝项目 · 不提供主观购买评分 · <span id="footer-version">数据加载中</span></p>
+    </div>
+  </footer>
+
+  <!-- 全局搜索 -->
+  <div class="modal search-modal" id="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title" hidden>
+    <div class="modal-backdrop" data-action="close-search"></div>
+    <div class="search-panel">
+      <div class="search-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+        <input id="search-input" type="search" placeholder="搜索干员、时装、系列…" autocomplete="off" spellcheck="false" aria-labelledby="search-title">
+        <button type="button" class="icon-btn" data-action="close-search" aria-label="关闭搜索">ESC</button>
+      </div>
+      <h2 id="search-title" class="sr-only">搜索干员或时装</h2>
+      <div class="search-hint" id="search-hint">输入中文名、英文名或时装名；↑↓ 选择，Enter 打开。</div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+  <!-- 动态影像播放 -->
+  <div class="modal theater" id="theater" role="dialog" aria-modal="true" aria-label="官方动态影像" hidden>
+    <div class="modal-backdrop" data-action="close-theater"></div>
+    <div class="theater-panel">
+      <div class="theater-head">
+        <div>
+          <span class="kicker" id="theater-kicker">OFFICIAL DYNAMIC</span>
+          <h2 id="theater-title">官方动态</h2>
+          <p id="theater-sub"></p>
+        </div>
+        <button type="button" class="icon-btn close" data-action="close-theater" aria-label="关闭播放器">✕</button>
+      </div>
+      <div class="theater-stage">
+        <video id="theater-video" controls playsinline preload="metadata"></video>
+        <div class="theater-loading" id="theater-loading"><span></span>正在连接官方 CDN…</div>
+      </div>
+      <div class="action-tabs" id="theater-actions" role="tablist" aria-label="动作选择"></div>
+      <div class="theater-foot">
+        <p>影像来自《明日方舟》官方网站「干员动态集录」，直接流式播放官方 MP4，不在本站存储。</p>
+        <a id="theater-source" href="https://ak.hypergryph.com/archive/dynamicCompile/index.html" target="_blank" rel="noopener noreferrer">查看官方来源 ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 立绘灯箱 -->
+  <div class="modal lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="查看完整立绘" hidden>
+    <div class="modal-backdrop" data-action="close-lightbox"></div>
+    <button type="button" class="icon-btn lightbox-close" data-action="close-lightbox" aria-label="关闭">✕</button>
+    <figure class="lightbox-figure">
+      <img id="lightbox-img" alt="">
+      <figcaption id="lightbox-cap"></figcaption>
+    </figure>
+  </div>
+
+  <script type="module" src="assets/app.js?v=20261026b"></script>
+</body>
+</html>
