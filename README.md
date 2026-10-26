@@ -4,8 +4,8 @@
 
 ## 线上地址
 
-- GitHub Pages：https://xuxakiss.github.io/terra-wardrobe/
-- 计划自定义域名：https://ark.kixuxs.top/
+- 主站（自定义域名，已启用 HTTPS）：https://ark.kixuxs.top/
+- GitHub Pages 备用地址：https://xuxakiss.github.io/terra-wardrobe/
 
 ## 功能
 
@@ -47,13 +47,13 @@ python scripts/build_data.py
 
 ### 自定义域名
 
-在 DNS 服务商添加：
+已配置完成：
 
-| 类型 | 主机记录 | 记录值 |
-| --- | --- | --- |
-| CNAME | `ark` | `xuxakiss.github.io` |
+| 类型 | 主机记录 | 记录值 | 代理状态 |
+| --- | --- | --- | --- |
+| CNAME | `ark` | `xuxakiss.github.io` | DNS only（灰云） |
 
-然后在 GitHub 仓库 `Settings → Pages → Custom domain` 填入 `ark.kixuxs.top`，并勾选 `Enforce HTTPS`。仓库中的 `CNAME` 文件需与之一致。
+GitHub 仓库 `Settings → Pages → Custom domain` 已填入 `ark.kixuxs.top`，并开启 `Enforce HTTPS`。仓库根目录的 `CNAME` 文件由 GitHub Pages 维护，内容为 `ark.kixuxs.top`。
 
 ## 版权
 
