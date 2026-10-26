@@ -9,15 +9,18 @@
 
 ## 功能
 
-- 434 位干员、526 套时装、72 套动态时装、26 条精英二动态记录
+- 434 位干员、527 套时装、72 套动态时装、26 条精英二动态记录
+- 370 套时装收录基建 / 技能动作，共 1,946 段官方 GIF
 - 原立绘 / 皮肤立绘滑动对比，支持精英一 / 精英二切换
 - 官方 MP4 直接流式播放，支持多段动作切换
+- 列表 / 海报只加载本地低清 WebP，点击动作卡或灯箱后才加载原始 GIF / 立绘
 - 全站搜索、职业 / 星级 / 系列筛选、排序、加载更多
 - 纯静态，无后端、无账号、无追踪
 
 ## 数据来源
 
 - 官方动态集录：<https://ak.hypergryph.com/archive/dynamicCompile/index.html>
+- 官方 B 站「新增服饰」图集：<https://space.bilibili.com/161775300>
 - 游戏数据：<https://github.com/Kengxxiao/ArknightsGameData>
 - 立绘资源：<https://github.com/yuanyan3060/ArknightsGameResource>
 - 资料索引：<https://prts.wiki/>
@@ -34,12 +37,17 @@ python -m http.server 8787
 
 ## 更新数据
 
+部署仓库只包含构建后的 `site/` 内容；完整抓取脚本在源仓库中：
+
 ```bash
 python scripts/fetch_dynamics.py
 python scripts/build_data.py
+python scripts/fetch_official_skins.py
+python scripts/merge_official_skins.py --apply
+python scripts/build_previews.py
 ```
 
-`build_data.py` 会读取 `data/raw/file_dict.json` 校验立绘是否存在，并自动为没有精英二立绘的干员回退到精英一立绘。
+`build_data.py` 会读取 `data/raw/file_dict.json` 校验立绘是否存在，并自动为没有精英二立绘的干员回退到精英一立绘。`build_previews.py` 应在合并官方动作之后运行。
 
 ## 部署
 
@@ -57,4 +65,4 @@ GitHub 仓库 `Settings → Pages → Custom domain` 已填入 `ark.kixuxs.top`�
 
 ## 版权
 
-《明日方舟》及其角色、时装、影像、音乐等内容的版权归上海鹰角网络科技有限公司所有。本站是非官方粉丝项目，与鹰角网络无隶属关系；不存储视频文件，仅引用官方公开 CDN 内容。
+《明日方舟》及其角色、时装、影像、音乐等内容的版权归上海鹰角网络科技有限公司所有。本站是非官方粉丝项目，与鹰角网络无隶属关系；不存储视频 / GIF 文件，仅引用官方公开 CDN 内容。

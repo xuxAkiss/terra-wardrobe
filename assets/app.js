@@ -3,7 +3,7 @@
    Vanilla JS single-page archive
    ========================================================= */
 
-const DATA_URL = 'data/archive.json';
+const DATA_URL = 'data/archive.json?v=20261027b';
 const OFFICIAL_ARCHIVE = 'https://ak.hypergryph.com/archive/dynamicCompile/index.html';
 const FALLBACK_IMG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">' +
@@ -45,6 +45,22 @@ function attr(value) {
 
 function enc(value) {
   return encodeURIComponent(String(value));
+}
+
+const IMG_PROXY = 'https://images.weserv.nl/?url=';
+
+// Low-resolution WebP preview. Full-size originals are only used by the
+// lightbox / video player, so list pages stay light.
+function preview(url, width = 360) {
+  if (!url || url.startsWith('data:') || url.startsWith('assets/')) return url;
+  const w = Math.round(width);
+  // Bilibili's image CDN can return a resized first frame for GIFs.
+  if (/hdslb\.com/i.test(url)) return `${url}@${w}w.webp`;
+  return `${IMG_PROXY}${encodeURIComponent(url)}&w=${w}&output=webp&q=76&we`;
+}
+
+function isGif(url) {
+  return /\.gif(?:$|\?)/i.test(url || '');
 }
 
 function stars(n) {
@@ -160,6 +176,7 @@ function readFilters(route) {
     class: validClass,
     rarity,
     dyn: q.get('dyn') === '1',
+    demo: q.get('demo') === '1',
     series,
     sort,
     q: q.get('q') || '',
@@ -181,6 +198,7 @@ function syncFilters() {
     if (f.class !== 'ALL') params.set('class', f.class);
     if (f.rarity !== 'ALL') params.set('rarity', f.rarity);
     if (f.dyn) params.set('dyn', '1');
+    if (f.demo) params.set('demo', '1');
     if (f.series !== 'ALL') params.set('series', f.series);
     if (f.sort !== 'new') params.set('sort', f.sort);
     if (f.q) params.set('q', f.q);
@@ -309,6 +327,7 @@ function filteredSkins() {
     if (f.class !== 'ALL' && s.profession !== f.class) return false;
     if (f.rarity !== 'ALL' && String(s.rarity) !== f.rarity) return false;
     if (f.dyn && !s.dyn) return false;
+    if (f.demo && !(s.demos && s.demos.length)) return false;
     if (f.series !== 'ALL' && s.series !== f.series) return false;
     if (q) {
       const hay = `${s.name} ${s.operatorName} ${s.operatorEn} ${s.series} ${s.artist}`.toLowerCase();
@@ -345,10 +364,11 @@ function skinCard(s) {
   return `
     <a class="skin-card" href="${href}" style="--class-color:${attr(s.classColor)}" aria-label="${attr(s.operatorName)} · ${attr(s.name)}">
       <div class="card-media" data-glyph="${attr(s.classShort)}">
-        <img src="${attr(s.thumb || s.image)}" data-fallback="${attr(fallback)}" alt="${attr(s.operatorName)} ${attr(s.name)} 立绘" loading="lazy" decoding="async">
+        <img src="${attr(s.preview || preview(s.thumb || s.image, 320))}" data-fallback="${attr(fallback)}" alt="${attr(s.operatorName)} ${attr(s.name)} 立绘" loading="lazy" decoding="async">
         <div class="card-badges">
           ${classBadge(s)}
           ${s.dyn ? dynBadge('动态') : ''}
+          ${s.demoCount ? `<span class="demo-badge">动作 ${s.demoCount}</span>` : ''}
         </div>
         <span class="card-hover-line"></span>
       </div>
@@ -365,7 +385,7 @@ function operatorCard(o) {
   return `
     <a class="op-card" href="${href}" style="--class-color:${attr(o.classColor)}" aria-label="${attr(o.name)} 干员档案">
       <div class="card-media" data-glyph="${attr(o.classShort)}">
-        <img src="${attr(o.portrait || o.portraitE2)}" data-fallback="${attr(o.artE2 || o.art)}" alt="${attr(o.name)} 立绘" loading="lazy" decoding="async">
+        <img src="${attr(o.preview || preview(o.portrait || o.portraitE2, 320))}" data-fallback="${attr(o.artE2 || o.art)}" alt="${attr(o.name)} 立绘" loading="lazy" decoding="async">
         <div class="card-badges">
           ${classBadge(o)}
           ${o.dynamicCount ? dynBadge('动态') : ''}
@@ -384,7 +404,7 @@ function dynCard(rec) {
   return `
     <article class="dyn-card" style="--class-color:${attr(rec.classColor)}">
       <button class="dyn-poster" type="button" data-action="play-record" data-key="${attr(rec.key)}" aria-label="播放 ${attr(rec.opName)} ${attr(rec.title)} 官方动态">
-        <img src="${attr(rec.poster)}" data-fallback="${attr(rec.poster)}" alt="${attr(rec.opName)} ${attr(rec.title)} 官方影像" loading="lazy" decoding="async">
+        <img src="${attr(rec.posterPreview || preview(rec.poster, 640))}" data-fallback="${attr(rec.poster)}" alt="${attr(rec.opName)} ${attr(rec.title)} 官方影像" loading="lazy" decoding="async">
         ${dynBadge(rec.type === 'skin' ? '官方动态' : '晋升动态')}
         <span class="dyn-play">${playIcon()}</span>
       </button>
@@ -396,11 +416,24 @@ function dynCard(rec) {
     </article>`;
 }
 
+function motionCard(demo, skin, index) {
+  const label = demo.label || `动作 ${index + 1}`;
+  return `
+    <button class="motion-card" type="button" data-action="open-lightbox"
+      data-src="${attr(demo.url)}" data-cap="${attr(skin.operatorName)} · ${attr(skin.name)} · ${attr(label)}"
+      aria-label="播放 ${attr(skin.operatorName)} ${attr(skin.name)} ${attr(label)} 官方动作">
+      <img src="${attr(preview(demo.url, 320))}" data-fallback="${attr(demo.url)}" alt="${attr(skin.operatorName)} ${attr(skin.name)} ${attr(label)}" loading="lazy" decoding="async">
+      <span class="motion-gif">GIF</span>
+      <span class="motion-play">${playIcon()}</span>
+      <span class="motion-label">${escapeHTML(label)}</span>
+    </button>`;
+}
+
 function heroFeature(rec) {
   return `
     <aside class="hero-feature">
       <a class="feature-link" href="${attr(rec.href)}" aria-label="查看 ${attr(rec.opName)} ${attr(rec.title)}">
-        <img src="${attr(rec.poster)}" data-fallback="${attr(rec.poster)}" alt="${attr(rec.opName)} ${attr(rec.title)} 官方动态影像" decoding="async">
+        <img src="${attr(rec.posterPreview || preview(rec.poster, 900))}" data-fallback="${attr(rec.poster)}" alt="${attr(rec.opName)} ${attr(rec.title)} 官方动态影像" decoding="async">
         <div class="feature-shade"></div>
         <div class="feature-top">
           <span class="dyn-badge">最新官方动态</span>
@@ -466,7 +499,7 @@ function renderHome() {
             </h1>
             <p class="hero-text">
               聚合《明日方舟》<strong>官方「干员动态集录」</strong>与全量干员、时装立绘。
-              原立绘与皮肤立绘一滑对比，动态时装的官方动作直接播放——
+              原立绘与皮肤立绘一滑对比，官方基建 / 技能动作与动态时装影像直接播放——
               不用等干员上岛，也能先看清她/他穿上的样子。
             </p>
             <div class="hero-actions">
@@ -477,6 +510,7 @@ function renderHome() {
               <span><i></i>${d.meta.operatorCount} 位干员</span>
               <span><i></i>${d.meta.skinCount} 套时装</span>
               <span><i></i>${d.meta.dynamicSkinCount} 套动态时装</span>
+              <span><i></i>${d.meta.demoSkinCount || 0} 套含基建 / 技能动作</span>
               <span><i></i>官方 MP4 直连</span>
             </div>
           </div>
@@ -490,7 +524,7 @@ function renderHome() {
         <div class="stat"><span class="stat-num">${d.meta.operatorCount}<em>+</em></span><span class="stat-label">OPERATORS / 干员</span></div>
         <div class="stat"><span class="stat-num">${d.meta.skinCount}</span><span class="stat-label">OUTFITS / 时装</span></div>
         <div class="stat"><span class="stat-num">${d.meta.dynamicSkinCount}</span><span class="stat-label">DYNAMIC / 动态时装</span></div>
-        <div class="stat"><span class="stat-num">${d.meta.officialClipCount}</span><span class="stat-label">OFFICIAL CLIPS / 官方动作</span></div>
+        <div class="stat"><span class="stat-num">${d.meta.demoClipCount || d.meta.officialClipCount}</span><span class="stat-label">MOTION / 基建·技能动作</span></div>
       </div>
     </div>
 
@@ -613,7 +647,7 @@ function renderSkins() {
             <span class="kicker">OUTFIT ARCHIVE</span>
             <h1 class="page-title">时装回廊<span class="en">ALL OUTFITS / ${app.data.meta.skinCount}</span></h1>
           </div>
-          <p class="page-desc">全量时装立绘与官方动态影像。拖动详情页的中线，就能把原立绘和皮肤叠在一起看；动态时装可直接播放官方动作。</p>
+          <p class="page-desc">全量时装立绘、官方动态影像与基建 / 技能动作 GIF。拖动详情页的中线，就能把原立绘和皮肤叠在一起看；点击动作图才加载完整 GIF。</p>
         </div>
       </header>
 
@@ -624,6 +658,7 @@ function renderSkins() {
         <div class="filter-sep"></div>
         <div class="filter-group">
           <button type="button" class="toggle" data-filter="dyn" aria-pressed="${f.dyn}"><span class="switch"></span>只看动态</button>
+          <button type="button" class="toggle" data-filter="demo" aria-pressed="${f.demo}"><span class="switch"></span>只看有动作</button>
         </div>
         <div class="filter-spacer"></div>
         <div class="filter-group">
@@ -646,10 +681,10 @@ function renderSkins() {
         </label>
       </div>
 
-      <div class="result-meta"><span><strong id="skin-count">${list.length}</strong> 套时装 · <strong id="skin-dyn-count">${list.filter((s) => s.dyn).length}</strong> 套动态</span><span>拖动详情页中线进行对比</span></div>
+      <div class="result-meta"><span><strong id="skin-count">${list.length}</strong> 套时装 · <strong id="skin-dyn-count">${list.filter((s) => s.dyn).length}</strong> 套动态 · <strong id="skin-demo-count">${list.filter((s) => s.demos && s.demos.length).length}</strong> 套有动作</span><span>拖动详情页中线进行对比</span></div>
       <div class="card-grid" id="skin-grid">${shown.map(skinCard).join('')}</div>
       <div class="load-more" id="skin-more">${moreButton('skins', list.length, app.visible)}</div>
-      ${list.length === 0 ? emptyState('没有找到这套时装', '试试清空「只看动态」，或换个系列 / 关键词。') : ''}
+      ${list.length === 0 ? emptyState('没有找到这套时装', '试试清空「只看动态 / 只看有动作」，或换个系列 / 关键词。') : ''}
     </div>
   </div>`;
 }
@@ -711,7 +746,7 @@ function renderOperatorDetail(op) {
 
       <div class="op-hero" style="--class-color:${attr(op.classColor)}">
         <div class="op-portrait">
-          <img src="${attr(op.portrait || e2)}" data-fallback="${attr(e2)}" alt="${attr(op.name)} 立绘">
+          <img src="${attr(op.preview || preview(op.portrait || e2, 640))}" data-fallback="${attr(e2)}" alt="${attr(op.name)} 立绘">
         </div>
         <div class="op-hero-copy">
           <div class="detail-overline">
@@ -774,9 +809,9 @@ function renderOperatorDetail(op) {
         </div>
         <div class="video-card">
           <div class="video-shell">
-            <video controls playsinline preload="none" poster="${attr(promo.poster || e2)}"></video>
+            <video controls playsinline preload="none" poster="${attr(promo.posterPreview || preview(promo.poster || e2, 960))}"></video>
             <button class="video-cover" type="button" data-action="play-record" data-key="o:${attr(op.id)}" aria-label="播放 ${attr(op.name)} 精英二动态">
-              <img src="${attr(promo.poster || e2)}" alt="">
+              <img src="${attr(promo.posterPreview || preview(promo.poster || e2, 960))}" alt="">
               <span class="play-ring">${playIcon()}</span>
             </button>
           </div>
@@ -808,6 +843,7 @@ function renderSkinDetail(skin) {
     .slice(0, 8);
   const dyn = skin.dyn;
   const actionCount = dyn ? dyn.actions.length : 0;
+  const demos = skin.demos || [];
 
   return `
   <div class="page">
@@ -820,8 +856,8 @@ function renderSkinDetail(skin) {
         <div class="detail-top">
           <div class="stage-wrap">
             <div class="art-stage compare" id="skin-stage" style="--class-color:${attr(skin.classColor)};--split:50%" data-index="${escapeHTML(skin.releaseDate ? skin.releaseDate.slice(0, 4) : 'OUTFIT')}" data-op-id="${attr(skin.operatorId)}">
-              <img class="layer base" id="base-layer" src="${attr(e2)}" data-e2="${attr(e2)}" data-e0="${attr(e0)}" data-fallback="${attr(e0)}" alt="${attr(skin.operatorName)} 原立绘">
-              <img class="layer skin" id="skin-layer" src="${attr(skin.image)}" data-fallback="${attr(skin.thumb)}" alt="${attr(skin.operatorName)} ${attr(skin.name)} 皮肤立绘">
+              <img class="layer base" id="base-layer" src="${attr(preview(e2, 900))}" data-e2="${attr(e2)}" data-e0="${attr(e0)}" data-fallback="${attr(e0)}" alt="${attr(skin.operatorName)} 原立绘">
+              <img class="layer skin" id="skin-layer" src="${attr(preview(skin.image, 900))}" data-fallback="${attr(skin.thumb)}" alt="${attr(skin.operatorName)} ${attr(skin.name)} 皮肤立绘">
               <div class="compare-divider"><span class="compare-handle">↔</span></div>
               <input class="compare-range" type="range" min="0" max="100" value="50" aria-label="拖动对比原立绘与皮肤立绘">
               <span class="stage-label" id="stage-label">对比中</span>
@@ -859,7 +895,7 @@ function renderSkinDetail(skin) {
               <div class="meta-item"><dt>上架时间</dt><dd>${escapeHTML(fmtDate(skin.releaseDate))}</dd></div>
               <div class="meta-item"><dt>获取方式</dt><dd>${escapeHTML(skin.obtain || '—')}</dd></div>
               <div class="meta-item"><dt>所属时装组</dt><dd>${escapeHTML(skin.group || '—')}</dd></div>
-              <div class="meta-item"><dt>官方动态</dt><dd>${dyn ? `<span class="yes">${actionCount} 段动作</span>` : '<span class="no">未收录 / 静态</span>'}</dd></div>
+              <div class="meta-item"><dt>官方动作</dt><dd>${demos.length ? `<span class="yes">${demos.length} 段 GIF</span>` : (dyn ? `<span class="yes">${actionCount} 段视频</span>` : '<span class="no">未收录</span>')}</dd></div>
             </dl>
 
             <div class="action-row">
@@ -871,7 +907,7 @@ function renderSkinDetail(skin) {
             <div class="facts">
               <div class="facts-head"><strong>购买前先看</strong><span>QUICK FACTS</span></div>
               <dl class="fact"><dt>立绘类型</dt><dd>${dyn ? '<span class="yes">动态立绘</span> · 含官方动作影像' : '静态立绘'}</dd></dl>
-              <dl class="fact"><dt>局内动作</dt><dd>${dyn ? '官方展示了额外立绘动作与入场表现' : '通常不改变技能特效，仅替换立绘与战斗小人'}</dd></dl>
+              <dl class="fact"><dt>局内动作</dt><dd>${demos.length ? `官方图集含 ${demos.length} 段基建 / 技能动作，点击下方 GIF 可播放原图` : (dyn ? '官方展示了额外立绘动作与入场表现' : '暂无官方动作图；通常不改变技能特效')}</dd></dl>
               <dl class="fact"><dt>获取方式</dt><dd>${escapeHTML(skin.obtain || '以游戏内公告为准')}</dd></dl>
               <dl class="fact"><dt>上架时间</dt><dd>${escapeHTML(fmtDate(skin.releaseDate))}</dd></dl>
               <dl class="fact"><dt>官方影像</dt><dd>${dyn ? `<span class="yes">已收录 ${actionCount} 段</span> · 可直接播放` : '<span class="no">暂无动态影像</span>'}</dd></dl>
@@ -894,9 +930,9 @@ function renderSkinDetail(skin) {
           ${dyn ? `
           <div class="video-card">
             <div class="video-shell">
-              <video controls playsinline preload="none" poster="${attr(dyn.poster || skin.image)}"></video>
+              <video controls playsinline preload="none" poster="${attr(dyn.posterPreview || preview(dyn.poster || skin.image, 960))}"></video>
               <button class="video-cover" type="button" data-action="play-record" data-key="s:${attr(skin.id)}" aria-label="播放 ${attr(skin.operatorName)} ${attr(skin.name)} 官方动态">
-                <img src="${attr(dyn.poster || skin.image)}" alt="">
+                <img src="${attr(dyn.posterPreview || preview(dyn.poster || skin.image, 960))}" alt="">
                 <span class="play-ring">${playIcon()}</span>
               </button>
             </div>
@@ -906,11 +942,26 @@ function renderSkinDetail(skin) {
             </div>
           </div>` : `
           <div class="empty-video">
-            <strong>这套时装没有官方动态影像</strong>
-            静态时装通常不改变技能特效。你仍然可以用上方的对比滑块查看立绘差异，或前往 B 站搜索官方时装展示。
+            <strong>${demos.length ? '这套时装没有动态立绘' : '这套时装没有官方动态影像'}</strong>
+            ${demos.length ? '下方已收录官方基建 / 技能动作 GIF，点击即可播放。也可以用上方的对比滑块查看立绘差异。' : '静态时装通常不改变技能特效。你仍然可以用上方的对比滑块查看立绘差异，或前往 B 站搜索官方时装展示。'}
             <div class="action-row"><a class="btn ghost small" href="${attr(outfitSearchURL(skin))}" target="_blank" rel="noopener noreferrer">去 B 站找官方演示 ${icon('external')}</a></div>
           </div>`}
         </section>
+
+        ${demos.length ? `
+        <section class="dynamic-section motion-section">
+          <div class="section-head">
+            <div>
+              <span class="kicker">BASE &amp; SKILL MOTION</span>
+              <h2 class="section-title" style="font-size:clamp(28px,3.4vw,44px)">基建 / 技能动作</h2>
+            </div>
+            ${skin.opus ? `<a class="section-link" href="${attr(skin.opus)}" target="_blank" rel="noopener noreferrer">官方图集 ${icon('external')}</a>` : ''}
+          </div>
+          <p class="motion-note">来自官方「新增服饰」图集，含基建动作与技能演示。列表只加载低清首帧，点击任意一张才播放完整 GIF。</p>
+          <div class="motion-grid">
+            ${demos.map((demo, index) => motionCard(demo, skin, index)).join('')}
+          </div>
+        </section>` : ''}
 
         ${related.length ? `
         <section class="dynamic-section related-strip">
@@ -943,6 +994,7 @@ function renderAbout() {
         <h2>数据从哪里来</h2>
         <div class="source-list">
           <div class="source-item"><span>动态时装 / 精英二动态影像与官方海报</span><a href="https://ak.hypergryph.com/archive/dynamicCompile/index.html" target="_blank" rel="noopener noreferrer">干员动态集录 ↗</a></div>
+          <div class="source-item"><span>基建 / 技能动作 GIF 与最新时装公告</span><a href="https://space.bilibili.com/161775300" target="_blank" rel="noopener noreferrer">明日方舟官方 B 站账号 ↗</a></div>
           <div class="source-item"><span>干员、时装、画师、上架时间等结构化数据</span><a href="https://github.com/Kengxxiao/ArknightsGameData" target="_blank" rel="noopener noreferrer">ArknightsGameData ↗</a></div>
           <div class="source-item"><span>立绘 / 头像资源（经 jsDelivr 读取）</span><a href="https://github.com/yuanyan3060/ArknightsGameResource" target="_blank" rel="noopener noreferrer">ArknightsGameResource ↗</a></div>
           <div class="source-item"><span>补充资料与官方公告索引</span><a href="https://prts.wiki/" target="_blank" rel="noopener noreferrer">PRTS Wiki ↗</a></div>
@@ -950,7 +1002,7 @@ function renderAbout() {
         <h2>关于版权</h2>
         <p>《明日方舟》及其角色、时装、影像、音乐等内容的版权归上海鹰角网络科技有限公司所有。本站是非官方粉丝项目，与鹰角网络无隶属关系。</p>
         <ul>
-          <li>本站不存储视频文件，只引用官方公开 CDN 上的 MP4 地址，并以流式方式播放。</li>
+          <li>本站不存储视频或 GIF 文件，只引用官方公开 CDN 上的 MP4 / GIF 地址；列表仅加载低清首帧，点击后才加载原图。</li>
           <li>立绘资源来自公开的游戏资源镜像，仅用于展示与对比。</li>
           <li>如版权方认为内容不妥，请联系站点维护者，我们会及时移除相关内容。</li>
         </ul>
@@ -958,6 +1010,7 @@ function renderAbout() {
         <ul>
           <li>点击任意时装卡片进入详情页，拖动画面中线即可对比原立绘与皮肤立绘。</li>
           <li>动态标记代表官方发布了动态影像，可在详情页或「动态集录」中直接播放。</li>
+          <li>详情页的「基建 / 技能动作」来自官方「新增服饰」图集；列表只显示低清首帧，点击后才播放完整 GIF。</li>
           <li>静态时装通常不改变技能特效；动态时装的卖点主要是立绘动作与入场表现。</li>
           <li>数据会随官方更新而重新构建；未收录的内容以游戏内公告与官方账号为准。</li>
         </ul>
@@ -1135,12 +1188,14 @@ function updateSkinResults() {
   if (count) count.textContent = list.length;
   const dynCount = $('#skin-dyn-count');
   if (dynCount) dynCount.textContent = list.filter((s) => s.dyn).length;
+  const demoCount = $('#skin-demo-count');
+  if (demoCount) demoCount.textContent = list.filter((s) => s.demos && s.demos.length).length;
   const more = $('#skin-more');
   if (more) more.innerHTML = moreButton('skins', list.length, app.visible);
   const empty = list.length === 0;
   let emptyEl = $('.empty', grid.parentElement);
   if (empty && !emptyEl) {
-    grid.insertAdjacentHTML('afterend', emptyState('没有找到这套时装', '试试清空「只看动态」，或换个系列 / 关键词。'));
+    grid.insertAdjacentHTML('afterend', emptyState('没有找到这套时装', '试试清空「只看动态 / 只看有动作」，或换个系列 / 关键词。'));
   } else if (!empty && emptyEl) {
     emptyEl.remove();
   }
@@ -1248,7 +1303,7 @@ function renderSearchResults(rawQuery) {
       const i = index++;
       app.searchItems.push({ href: item.href, index: i });
       return `<button class="search-item" type="button" data-search-href="${attr(item.href)}" data-index="${i}">
-        <span class="search-thumb"><img src="${attr(item.thumb)}" data-fallback="${attr(item.thumb)}" alt="" loading="lazy"></span>
+        <span class="search-thumb"><img src="${attr(preview(item.thumb, 160))}" data-fallback="${attr(item.thumb)}" alt="" loading="lazy"></span>
         <span class="search-copy"><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(item.sub)}</span></span>
         <span class="search-type">${escapeHTML(item.badge)}</span>
       </button>`;
@@ -1445,6 +1500,7 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
     const key = filterEl.dataset.filter;
     if (key === 'dyn') app.filters.dyn = !app.filters.dyn;
+    else if (key === 'demo') app.filters.demo = !app.filters.demo;
     else app.filters[key] = filterEl.dataset.value;
     app.visible = 60;
     syncFilters();
